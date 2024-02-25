@@ -1,3 +1,6 @@
+0.4.x
+- Adapt to Feb 2024 re-engineering of subdivx.com website
+
 0.4.0
 - First version to be submitted to Kodi v19 (Matrix) addons repository. Only
   compatible with Python 3. Thanks pedrochiuaua for the initiative and help
