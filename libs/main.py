@@ -261,6 +261,9 @@ def double_dot_fix_hack(video_filename):
             work_path = pjoin(custom_subs_path, fname)
 
     log("work_path = %s" % work_path)
+    if work_path.startswith("http"):
+        return
+
     parts = work_path.rsplit(".", 1)
     if len(parts) > 1:
         rest = parts[0]
