@@ -115,26 +115,45 @@ def search_and_set_kodi_entries(kodi_dir_handle, item):
     file_original_path = item["file_original_path"]
 
     if item["manual_search"]:
-        searchstring = unquote(item["manual_search_string"])
+        search_strings = [unquote(item["manual_search_string"])]
     elif item["tvshow"]:
-        searchstring = build_tvshow_searchstring(item)
+        search_strings = [build_tvshow_searchstring(item)]
     else:
-        searchstring = "%s%s" % (
-            item["title"],
-            " (%s)" % item["year"].strip("()") if item.get("year") else "",
-        )
-    log("Search string = %s" % searchstring)
+        title = item["title"]
+        search_strings = [
+            "%s%s"
+            % (
+                title,
+                " (%s)" % item["year"].strip("()") if item.get("year") else "",
+            )
+        ]
+        if item.get("year"):
+            try:
+                nyear = int(item["year"].strip("()"))
+            except Exception:
+                pass
+            else:
+                search_strings.append("%s (%d)" % (title, nyear - 1))
+                search_strings.append("%s (%d)" % (title, nyear + 1))
+            search_strings.append(title)
+
+    log("Search strings = %s" % search_strings)
 
     cache_ttl_value = addon_obj.getSetting("cache_ttl")
     try:
         cache_ttl = int(cache_ttl_value)
     except Exception:
         cache_ttl = 0
-    if cache_ttl:
-        cache = StorageServer.StorageServer("service.subtitles.subdivx", cache_ttl / 60.0)
-        subtitle_items = cache.cacheFunction(search_subtitles, searchstring, "es", file_original_path)
-    else:
-        subtitle_items = search_subtitles(searchstring, "es", file_original_path)
+
+    for search_str in search_strings:
+        if cache_ttl:
+            cache = StorageServer.StorageServer("service.subtitles.subdivx", cache_ttl / 60.0)
+            subtitle_items = cache.cacheFunction(search_subtitles, search_str, "es", file_original_path)
+        else:
+            subtitle_items = search_subtitles(search_str, "es", file_original_path)
+
+        if subtitle_items:
+            break
 
     if not subtitle_items:
         log("No subtitle found", level=logging.WARNING)

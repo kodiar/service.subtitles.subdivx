@@ -36,6 +36,7 @@ COMMON_HEADERS = {
 
 _session = None
 
+
 def search_subtitles(search_string, language_short, file_orig_path):
     if language_short != "es":
         return []
