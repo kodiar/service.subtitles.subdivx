@@ -1,14 +1,11 @@
-import json
 import logging
 import os
 import os.path
 from os.path import join as pjoin
 import re
-import urllib.error
-import urllib.request
-from urllib.parse import urlencode
 
 import html2text
+import requests
 
 from libs.utils import log
 
@@ -22,26 +19,30 @@ QS_DICT = {
     "filtros": "",
 }
 QS_KEY_QUERY = "buscar"
-PAGE_ENCODING = "utf-8"
 HTTP_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) " "Chrome/53.0.2785.21 Safari/537.36"
 )
 SUB_EXTS = ["SRT", "SUB", "SSA"]
 FORCED_SUB_SENTINELS = ["FORZADO", "FORCED"]
 
+REQUESTS_TIMEOUT_SECONDS = 14
+
+COMMON_HEADERS = {
+    "User-Agent": HTTP_USER_AGENT,
+    "X-Requested-With": "XMLHttpRequest",
+    "Referer": "https://www.subdivx.com/",
+    "Origin": "https://www.subdivx.com",
+}
+
+_session = None
 
 def search_subtitles(search_string, language_short, file_orig_path):
     if language_short != "es":
         return []
     qs_dict = QS_DICT.copy()
     qs_dict[QS_KEY_QUERY] = search_string
-    content = get_url(SEARCH_PAGE_URL, qs_dict)
-    if content is None:
-        return []
-    try:
-        results_data = json.loads(content)
-    except Exception as e:
-        log(str(e), logging.DEBUG)
+    results_data = get_url(SEARCH_PAGE_URL, query_data=qs_dict)
+    if results_data is None:
         return []
     subtitle_cnt = results_data["iTotalRecords"]
     log("%d subtitles found" % subtitle_cnt)
@@ -73,35 +74,61 @@ def search_subtitles(search_string, language_short, file_orig_path):
     return subtitle_items
 
 
-def get_url(url, query_data=None):
-    if query_data is None:
-        req = urllib.request.Request(url)
-        log("Fetching %s" % url)
+def get_url(url, query_data=None, is_download=False):
+    response = get_response(url, query_data=query_data)
+    if response is None:
+        return None
+    if is_download:
+        log("Final URL is %s" % response.url)
+    log("Response headers: %s" % response.headers, logging.DEBUG)
+    if is_download:
+        log("Response contents: %s" % response.content[:100], logging.DEBUG)
+        return response.content
     else:
-        urlencoded_query_data = urlencode(query_data)
-        req = urllib.request.Request(url, data=urlencoded_query_data.encode(PAGE_ENCODING))
-        log("Fetching %s POST data: %s" % (url, urlencoded_query_data))
-    req.add_header("User-Agent", HTTP_USER_AGENT)
-    req.add_header("X-Requested-With", "XMLHttpRequest")
-    req.add_header("Referer", "https://www.subdivx.com")
+        log("Response contents: %s" % response.text[:100], logging.DEBUG)
+        try:
+            results_data = response.json()
+        except requests.JSONDecodeError as e:
+            log(str(e), logging.DEBUG)
+            return None
+        else:
+            return results_data
+
+
+def has_sdx_cookie(session):
+    for cookie in session.cookies:
+        if cookie.name == "sdx" and cookie.domain == "www.subdivx.com" and cookie.path == "/":
+            return True
+    return False
+
+
+def get_session():
+    global _session
+    if not _session or not has_sdx_cookie(_session):
+        _session = requests.Session()
+        _session.headers.update(COMMON_HEADERS)
+        # log("-------> Getting a new session", logging.DEBUG)
+        _session.get(MAIN_SUBDIVX_URL, timeout=5)
+    return _session
+
+
+def get_response(url, query_data=None):
+    session = get_session()
+    if query_data is None:
+        log("Fetching %s" % url)
+    # else:
+    #     log("Fetching %s POST data: %s" % (url, urlencoded_query_data))
     try:
-        response = urllib.request.urlopen(req)
-    except urllib.error.HTTPError as e:
+        response = session.post(url, data=query_data, timeout=REQUESTS_TIMEOUT_SECONDS)
+        response.raise_for_status()
+    except requests.HTTPError as e:
         log("Failed to fetch %s (HTTP status: %d)" % (url, e.code), level=logging.WARNING)
-        pass
-    except urllib.error.URLError as e:
+    except requests.RequestException as e:
         log("Failed to fetch %s (URL error %s)" % (url, e.reason), level=logging.WARNING)
-        pass
     except Exception as e:
         log("Failed to fetch %s (generic error %s)" % (url, e), level=logging.WARNING)
-        pass
     else:
-        try:
-            content = response.read()
-        except Exception as e:
-            log("Failed to read response content from %s (generic error %s)" % (url, e), level=logging.WARNING)
-        else:
-            return content
+        return response
     return None
 
 
@@ -125,7 +152,7 @@ def cleanup_subdivx_comment(comment):
 def download_subtitle(subdivx_subtitle_id, workdir, uncompress_callback=None):
     # https://www.subdivx.com/descargar.php?id=217726
     actual_subtitle_file_url = MAIN_SUBDIVX_URL + "descargar.php?id=" + subdivx_subtitle_id
-    content = get_url(actual_subtitle_file_url)
+    content = get_url(actual_subtitle_file_url, is_download=True)
     if content is not None:
         saved_fnames = save_subtitles(workdir, content, uncompress_callback)
         return saved_fnames
