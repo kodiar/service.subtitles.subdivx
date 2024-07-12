@@ -80,16 +80,16 @@ def get_url(url, query_data=None, is_download=False):
         return None
     if is_download:
         log("Final URL is %s" % response.url)
-    log("Response headers: %s" % response.headers, logging.DEBUG)
+    log("Response headers: %s" % response.headers)
     if is_download:
-        log("Response contents: %s" % response.content[:100], logging.DEBUG)
+        log("Response contents: %s" % response.content[:100])
         return response.content
     else:
-        log("Response contents: %s" % response.text[:100], logging.DEBUG)
+        log("Response contents: %s" % response.text[:100])
         try:
             results_data = response.json()
         except requests.JSONDecodeError as e:
-            log(str(e), logging.DEBUG)
+            log(str(e))
             return None
         else:
             return results_data
@@ -107,7 +107,7 @@ def get_session():
     if not _session or not has_sdx_cookie(_session):
         _session = requests.Session()
         _session.headers.update(COMMON_HEADERS)
-        # log("-------> Getting a new session", logging.DEBUG)
+        # log("-------> Getting a new session")
         _session.get(MAIN_SUBDIVX_URL, timeout=5)
     return _session
 

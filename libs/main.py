@@ -279,8 +279,8 @@ def subtitles_setting(name):
 
 
 def debug_dump_path(victim, name):
-    t = type(victim)
-    log("SUBDIVX - %s (%s): %s" % (name, t, victim), level=logging.DEBUG)
+    _type = type(victim)
+    log("%s (%s): %s" % (name, _type, victim))
 
 
 def cleanup_tempdir(dir_path, verbose=False):
