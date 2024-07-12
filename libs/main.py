@@ -184,23 +184,22 @@ def action_download():
     profile_dir = xbmcvfs.translatePath(addon_obj.getAddonInfo("profile"))
     kodi_dir_handle = int(sys.argv[1])
     params = get_params(sys.argv)
-    cleanup_tempdirs(profile_dir)
-    workdir = tempfile.mkdtemp(dir=profile_dir)
-    # Make sure it ends with a path separator (Kodi 14)
-    workdir = workdir + os.path.sep
-    debug_dump_path(workdir, "workdir")
-    # We pickup our arguments sent from the action_search() function
-    download_and_set_kodi_entries(kodi_dir_handle, params["id"], profile_dir, workdir)
-
-    sleep(2)
-    if addon_obj.getSetting("show_nick_in_place_of_lang") == "true":
-        double_dot_fix_hack(params["filename"])
-    cleanup_tempdir(workdir, verbose=True)
-
-
-def download_and_set_kodi_entries(kodi_dir_handle, subdivx_subtitle_id, profile_dir, workdir):
     debug_dump_path(profile_dir, "__profile__")
     xbmcvfs.mkdirs(profile_dir)
+    cleanup_tempdirs(profile_dir)
+    # workdir = tempfile.mkdtemp(dir=profile_dir)
+    with tempfile.TemporaryDirectory(dir=profile_dir) as workdir:
+        # Make sure it ends with a path separator (Kodi 14)
+        workdir = workdir + os.path.sep
+        debug_dump_path(workdir, "workdir")
+        # We pickup our arguments sent from the action_search() function
+        download_and_set_kodi_entries(kodi_dir_handle, params["id"], workdir)
+
+        sleep(2)
+        double_dot_fix_hack(params["filename"])
+
+
+def download_and_set_kodi_entries(kodi_dir_handle, subdivx_subtitle_id, workdir):
     subs = download_subtitle(subdivx_subtitle_id, workdir, uncompress_callback=uncompress_callback)
     # We can return more than one subtitle for multi CD versions, for now
     # we are still working out how to handle that in Kodi core
