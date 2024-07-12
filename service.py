@@ -15,7 +15,7 @@ import xbmcvfs
 from libs.main import action_download, action_search
 from libs.utils import get_params
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"
 
 
 def main():
